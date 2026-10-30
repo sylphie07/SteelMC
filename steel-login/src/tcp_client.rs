@@ -176,11 +176,13 @@ impl TrustedLocalPlayer {
         }
     }
 
+    /// Returns the username bound to this embedded connection.
     #[must_use]
     pub fn username(&self) -> &str {
         &self.username
     }
 
+    /// Returns the persisted player UUID bound to this embedded connection.
     #[must_use]
     pub const fn player_uuid(&self) -> Uuid {
         self.player_uuid
