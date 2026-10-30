@@ -170,14 +170,21 @@ impl TrustedLocalPlayer {
     /// Creates the trusted identity for one embedded connection.
     #[must_use]
     pub fn new(username: impl Into<String>, player_uuid: Uuid) -> Self {
-        Self { username: username.into(), player_uuid }
+        Self {
+            username: username.into(),
+            player_uuid,
+        }
     }
 
     #[must_use]
-    pub fn username(&self) -> &str { &self.username }
+    pub fn username(&self) -> &str {
+        &self.username
+    }
 
     #[must_use]
-    pub const fn player_uuid(&self) -> Uuid { self.player_uuid }
+    pub const fn player_uuid(&self) -> Uuid {
+        self.player_uuid
+    }
 }
 
 #[derive(Default)]
@@ -321,7 +328,10 @@ impl JavaTcpClient {
     /// Creates an embedded connection carrying a trusted local identity.
     /// Ordinary TCP callers must use `new` or `from_transport`.
     #[must_use]
-    #[expect(clippy::too_many_arguments, reason = "explicit per-connection embedded context")]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit per-connection embedded context"
+    )]
     pub fn from_transport_with_trusted_local_player(
         read: JavaTransportRead,
         write: JavaTransportWrite,
@@ -346,7 +356,10 @@ impl JavaTcpClient {
         )
     }
 
-    #[expect(clippy::too_many_arguments, reason = "shared constructor for socket and embedded transports")]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "shared constructor for socket and embedded transports"
+    )]
     fn from_transport_inner(
         read: JavaTransportRead,
         write: JavaTransportWrite,
