@@ -158,7 +158,7 @@ impl ServerConnectionSession {
 
 /// Identity supplied by the in-process embedder for one trusted local player.
 ///
-/// This value is carried by a single JavaTcpClient; it is never stored on
+/// This value is carried by a single `JavaTcpClient`; it is never stored on
 /// the listener session and is never populated by a network packet.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TrustedLocalPlayer {
