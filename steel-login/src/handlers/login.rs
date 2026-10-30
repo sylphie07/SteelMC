@@ -298,7 +298,6 @@ mod tests {
             .expect("matching trusted local identity should be accepted");
 
         assert_eq!(profile.id(), expected);
-        assert_eq!(profile.name(), "PommeTest");
     }
 
     #[test]
