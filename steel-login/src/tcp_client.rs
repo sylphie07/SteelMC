@@ -156,6 +156,30 @@ impl ServerConnectionSession {
     }
 }
 
+/// Identity supplied by the in-process embedder for one trusted local player.
+///
+/// This value is carried by a single JavaTcpClient; it is never stored on
+/// the listener session and is never populated by a network packet.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TrustedLocalPlayer {
+    username: String,
+    player_uuid: Uuid,
+}
+
+impl TrustedLocalPlayer {
+    /// Creates the trusted identity for one embedded connection.
+    #[must_use]
+    pub fn new(username: impl Into<String>, player_uuid: Uuid) -> Self {
+        Self { username: username.into(), player_uuid }
+    }
+
+    #[must_use]
+    pub fn username(&self) -> &str { &self.username }
+
+    #[must_use]
+    pub const fn player_uuid(&self) -> Uuid { self.player_uuid }
+}
+
 #[derive(Default)]
 pub(crate) struct ConnectionAction {
     reader_encryption: Option<[u8; 16]>,
@@ -220,6 +244,8 @@ pub struct JavaTcpClient {
     pub server: Arc<Server>,
     /// The session id state for the active server connection listener
     pub connection_session: Arc<ServerConnectionSession>,
+    /// Trusted local identity for this connection only; TCP constructors leave it empty.
+    pub(crate) trusted_local_player: Option<TrustedLocalPlayer>,
     /// The challenge sent to the client during login.
     pub challenge: AtomicCell<[u8; 4]>,
 
@@ -279,6 +305,39 @@ impl JavaTcpClient {
         connection_session: Arc<ServerConnectionSession>,
         task_tracker: TaskTracker,
     ) -> (Self, UnboundedReceiver<OutboundPacket>, JavaNetworkReader) {
+        Self::from_transport_inner(read, write, address, id, cancel_token, server, connection_session, None, task_tracker)
+    }
+
+    /// Creates an embedded connection carrying a trusted local identity.
+    /// Ordinary TCP callers must use new() or from_transport().
+    #[must_use]
+    #[expect(clippy::too_many_arguments, reason = "explicit per-connection embedded context")]
+    pub fn from_transport_with_trusted_local_player(
+        read: JavaTransportRead,
+        write: JavaTransportWrite,
+        address: SocketAddr,
+        id: u64,
+        cancel_token: CancellationToken,
+        server: Arc<Server>,
+        connection_session: Arc<ServerConnectionSession>,
+        trusted_local_player: TrustedLocalPlayer,
+        task_tracker: TaskTracker,
+    ) -> (Self, UnboundedReceiver<OutboundPacket>, JavaNetworkReader) {
+        Self::from_transport_inner(read, write, address, id, cancel_token, server, connection_session, Some(trusted_local_player), task_tracker)
+    }
+
+    #[expect(clippy::too_many_arguments, reason = "shared constructor for socket and embedded transports")]
+    fn from_transport_inner(
+        read: JavaTransportRead,
+        write: JavaTransportWrite,
+        address: SocketAddr,
+        id: u64,
+        cancel_token: CancellationToken,
+        server: Arc<Server>,
+        connection_session: Arc<ServerConnectionSession>,
+        trusted_local_player: Option<TrustedLocalPlayer>,
+        task_tracker: TaskTracker,
+    ) -> (Self, UnboundedReceiver<OutboundPacket>, JavaNetworkReader) {
         let (outgoing_queue, recv) = mpsc::unbounded_channel();
         let (connection_updates, _) = broadcast::channel(128);
 
@@ -296,6 +355,7 @@ impl JavaTcpClient {
             compression: Arc::new(AtomicCell::new(None)),
             server,
             connection_session,
+            trusted_local_player,
             challenge: AtomicCell::new([0; 4]),
             connection_updates,
             connection_updated: Arc::new(Notify::new()),
