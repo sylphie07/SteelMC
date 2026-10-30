@@ -22,7 +22,10 @@ fn offline_login_profile(
             (trusted.player_uuid(), trusted.username().to_owned())
         }
         Some(_) => return None,
-        None => (offline_uuid(requested_username), requested_username.to_owned()),
+        None => (
+            offline_uuid(requested_username),
+            requested_username.to_owned(),
+        ),
     };
     GameProfile::new(player_uuid, username, Vec::new()).ok()
 }
@@ -95,7 +98,10 @@ impl JavaTcpClient {
         // A trusted embedded identity is strictly offline-only; it cannot bypass
         // the online-mode Mojang authentication path.
         if self.trusted_local_player.is_some() && self.server.config.online_mode {
-            self.kick("Trusted local identity cannot be used with online-mode authentication".into()).await;
+            self.kick(
+                "Trusted local identity cannot be used with online-mode authentication".into(),
+            )
+            .await;
             return ConnectionAction::none();
         }
         let requested_username = packet.name;
@@ -123,11 +129,11 @@ impl JavaTcpClient {
             return ConnectionAction::none();
         }
 
-        let Some(profile) = offline_login_profile(
-            &requested_username,
-            self.trusted_local_player.as_ref(),
-        ) else {
-            self.kick("Invalid player name or trusted local identity mismatch".into()).await;
+        let Some(profile) =
+            offline_login_profile(&requested_username, self.trusted_local_player.as_ref())
+        else {
+            self.kick("Invalid player name or trusted local identity mismatch".into())
+                .await;
             return ConnectionAction::none();
         };
         self.finish_verified_login(profile, None).await
@@ -205,11 +211,11 @@ impl JavaTcpClient {
                 }
             }
         } else {
-            let Some(profile) = offline_login_profile(
-                &requested_username,
-                self.trusted_local_player.as_ref(),
-            ) else {
-                self.kick("Invalid player name or trusted local identity mismatch".into()).await;
+            let Some(profile) =
+                offline_login_profile(&requested_username, self.trusted_local_player.as_ref())
+            else {
+                self.kick("Invalid player name or trusted local identity mismatch".into())
+                    .await;
                 return ConnectionAction::none();
             };
             profile
