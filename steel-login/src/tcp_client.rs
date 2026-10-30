@@ -305,11 +305,21 @@ impl JavaTcpClient {
         connection_session: Arc<ServerConnectionSession>,
         task_tracker: TaskTracker,
     ) -> (Self, UnboundedReceiver<OutboundPacket>, JavaNetworkReader) {
-        Self::from_transport_inner(read, write, address, id, cancel_token, server, connection_session, None, task_tracker)
+        Self::from_transport_inner(
+            read,
+            write,
+            address,
+            id,
+            cancel_token,
+            server,
+            connection_session,
+            None,
+            task_tracker,
+        )
     }
 
     /// Creates an embedded connection carrying a trusted local identity.
-    /// Ordinary TCP callers must use new() or from_transport().
+    /// Ordinary TCP callers must use `new` or `from_transport`.
     #[must_use]
     #[expect(clippy::too_many_arguments, reason = "explicit per-connection embedded context")]
     pub fn from_transport_with_trusted_local_player(
@@ -323,7 +333,17 @@ impl JavaTcpClient {
         trusted_local_player: TrustedLocalPlayer,
         task_tracker: TaskTracker,
     ) -> (Self, UnboundedReceiver<OutboundPacket>, JavaNetworkReader) {
-        Self::from_transport_inner(read, write, address, id, cancel_token, server, connection_session, Some(trusted_local_player), task_tracker)
+        Self::from_transport_inner(
+            read,
+            write,
+            address,
+            id,
+            cancel_token,
+            server,
+            connection_session,
+            Some(trusted_local_player),
+            task_tracker,
+        )
     }
 
     #[expect(clippy::too_many_arguments, reason = "shared constructor for socket and embedded transports")]
