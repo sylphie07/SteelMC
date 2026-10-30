@@ -23,4 +23,4 @@ pub use steel_core::player::{ClientInformation, GameProfile, is_valid_player_nam
 
 // Connection types
 pub use connection::JavaConnection;
-pub use tcp_client::{ConnectionUpdate, JavaTcpClient, ServerConnectionSession};
+pub use tcp_client::{ConnectionUpdate, JavaTcpClient, ServerConnectionSession, TrustedLocalPlayer};
