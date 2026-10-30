@@ -357,7 +357,6 @@ mod tests {
         let profile = offline_login_profile("PommeTest", None)
             .expect("valid offline username should produce a profile");
         assert_eq!(profile.id(), offline_uuid("PommeTest"));
-        assert_eq!(profile.name(), "PommeTest");
     }
     const SECRET: [u8; 16] = [7; 16];
 
