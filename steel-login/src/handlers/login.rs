@@ -11,6 +11,14 @@ use steel_protocol::{
 use steel_utils::translations;
 use text_components::TextComponent;
 
+/// Trusted offline identity is forbidden when online-mode authentication is enabled.
+fn trusted_identity_allowed(
+    online_mode: bool,
+    trusted_local_player: Option<&TrustedLocalPlayer>,
+) -> bool {
+    !online_mode || trusted_local_player.is_none()
+}
+
 /// Resolves offline identity without ever consulting the client Hello UUID.
 /// A trusted embedded identity is valid only for its exact persisted username.
 fn offline_login_profile(
@@ -97,7 +105,10 @@ impl JavaTcpClient {
         // The hello UUID is client supplied and is never an identity source.
         // A trusted embedded identity is strictly offline-only; it cannot bypass
         // the online-mode Mojang authentication path.
-        if self.trusted_local_player.is_some() && self.server.config.online_mode {
+        if !trusted_identity_allowed(
+            self.server.config.online_mode,
+            self.trusted_local_player.as_ref(),
+        ) {
             self.kick(
                 "Trusted local identity cannot be used with online-mode authentication".into(),
             )
@@ -310,6 +321,29 @@ mod tests {
     fn trusted_embedded_identity_rejects_username_mismatch() {
         let trusted = TrustedLocalPlayer::new("PommeTest", uuid::Uuid::from_u128(7));
         assert!(offline_login_profile("DifferentPlayer", Some(&trusted)).is_none());
+    }
+
+    #[test]
+    fn trusted_contexts_keep_each_connections_identity_isolated() {
+        let first_uuid = uuid::Uuid::from_u128(1);
+        let second_uuid = uuid::Uuid::from_u128(2);
+        let first = TrustedLocalPlayer::new("PommeOne", first_uuid);
+        let second = TrustedLocalPlayer::new("PommeTwo", second_uuid);
+
+        let first_profile = offline_login_profile(first.username(), Some(&first)).unwrap();
+        let second_profile = offline_login_profile(second.username(), Some(&second)).unwrap();
+
+        assert_eq!(first_profile.id(), first_uuid);
+        assert_eq!(second_profile.id(), second_uuid);
+        assert!(offline_login_profile(second.username(), Some(&first)).is_none());
+    }
+
+    #[test]
+    fn trusted_identity_never_bypasses_online_mode() {
+        let trusted = TrustedLocalPlayer::new("PommeTest", uuid::Uuid::from_u128(7));
+        assert!(!trusted_identity_allowed(true, Some(&trusted)));
+        assert!(trusted_identity_allowed(false, Some(&trusted)));
+        assert!(trusted_identity_allowed(true, None));
     }
 
     #[test]
