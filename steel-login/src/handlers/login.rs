@@ -11,9 +11,25 @@ use steel_protocol::{
 use steel_utils::translations;
 use text_components::TextComponent;
 
+/// Resolves offline identity without ever consulting the client Hello UUID.
+/// A trusted embedded identity is valid only for its exact persisted username.
+fn offline_login_profile(
+    requested_username: &str,
+    trusted_local_player: Option<&TrustedLocalPlayer>,
+) -> Option<GameProfile> {
+    let (player_uuid, username) = match trusted_local_player {
+        Some(trusted) if trusted.username() == requested_username => {
+            (trusted.player_uuid(), trusted.username().to_owned())
+        }
+        Some(_) => return None,
+        None => (offline_uuid(requested_username), requested_username.to_owned()),
+    };
+    GameProfile::new(player_uuid, username, Vec::new()).ok()
+}
+
 use crate::{
     AuthError, is_valid_player_name, mojang_authenticate, offline_uuid, signed_bytes_be_to_hex,
-    tcp_client::{ConnectionAction, ConnectionUpdate, JavaTcpClient},
+    tcp_client::{ConnectionAction, ConnectionUpdate, JavaTcpClient, TrustedLocalPlayer},
 };
 
 impl JavaTcpClient {
@@ -75,7 +91,13 @@ impl JavaTcpClient {
 
     /// Handles the hello packet during the login state.
     pub(crate) async fn handle_hello(&self, packet: SHello) -> ConnectionAction {
-        // The hello UUID is client supplied; only authentication or offline derivation is trusted.
+        // The hello UUID is client supplied and is never an identity source.
+        // A trusted embedded identity is strictly offline-only; it cannot bypass
+        // the online-mode Mojang authentication path.
+        if self.trusted_local_player.is_some() && self.server.config.online_mode {
+            self.kick("Trusted local identity cannot be used with online-mode authentication".into()).await;
+            return ConnectionAction::none();
+        }
         let requested_username = packet.name;
         if !is_valid_player_name(&requested_username) {
             self.kick("Invalid player name".into()).await;
@@ -101,12 +123,11 @@ impl JavaTcpClient {
             return ConnectionAction::none();
         }
 
-        let Ok(profile) = GameProfile::new(
-            offline_uuid(&requested_username),
-            requested_username,
-            Vec::new(),
+        let Some(profile) = offline_login_profile(
+            &requested_username,
+            self.trusted_local_player.as_ref(),
         ) else {
-            self.kick("Invalid player name".into()).await;
+            self.kick("Invalid player name or trusted local identity mismatch".into()).await;
             return ConnectionAction::none();
         };
         self.finish_verified_login(profile, None).await
@@ -114,6 +135,10 @@ impl JavaTcpClient {
 
     /// Handles the key packet during the login state, used for encryption.
     pub(crate) async fn handle_key(&self, packet: SKey) -> ConnectionAction {
+        if self.trusted_local_player.is_some() && self.server.config.online_mode {
+            self.kick("Trusted local identity cannot be used with online-mode authentication".into()).await;
+            return ConnectionAction::none();
+        }
         let sequence_result = self.pre_play_state.lock().begin_authentication();
         let requested_username = match sequence_result {
             Ok(requested_username) => requested_username,
@@ -180,12 +205,11 @@ impl JavaTcpClient {
                 }
             }
         } else {
-            let Ok(profile) = GameProfile::new(
-                offline_uuid(&requested_username),
-                requested_username,
-                Vec::new(),
+            let Some(profile) = offline_login_profile(
+                &requested_username,
+                self.trusted_local_player.as_ref(),
             ) else {
-                self.kick("Invalid player name".into()).await;
+                self.kick("Invalid player name or trusted local identity mismatch".into()).await;
                 return ConnectionAction::none();
             };
             profile
@@ -265,6 +289,31 @@ mod tests {
     use super::*;
 
     const CHALLENGE: [u8; 4] = [1, 2, 3, 4];
+
+    #[test]
+    fn trusted_embedded_identity_is_used_instead_of_client_uuid() {
+        let expected = uuid::Uuid::from_u128(0x123456789abcdef0123456789abcdef0);
+        let trusted = TrustedLocalPlayer::new("PommeTest", expected);
+        let profile = offline_login_profile("PommeTest", Some(&trusted))
+            .expect("matching trusted local identity should be accepted");
+
+        assert_eq!(profile.id(), expected);
+        assert_eq!(profile.name(), "PommeTest");
+    }
+
+    #[test]
+    fn trusted_embedded_identity_rejects_username_mismatch() {
+        let trusted = TrustedLocalPlayer::new("PommeTest", uuid::Uuid::from_u128(7));
+        assert!(offline_login_profile("DifferentPlayer", Some(&trusted)).is_none());
+    }
+
+    #[test]
+    fn ordinary_offline_login_keeps_historical_uuid_derivation() {
+        let profile = offline_login_profile("PommeTest", None)
+            .expect("valid offline username should produce a profile");
+        assert_eq!(profile.id(), offline_uuid("PommeTest"));
+        assert_eq!(profile.name(), "PommeTest");
+    }
     const SECRET: [u8; 16] = [7; 16];
 
     fn encrypt(key_store: &KeyStore, data: &[u8]) -> Vec<u8> {
