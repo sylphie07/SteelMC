@@ -152,8 +152,14 @@ impl JavaTcpClient {
 
     /// Handles the key packet during the login state, used for encryption.
     pub(crate) async fn handle_key(&self, packet: SKey) -> ConnectionAction {
-        if self.trusted_local_player.is_some() && self.server.config.online_mode {
-            self.kick("Trusted local identity cannot be used with online-mode authentication".into()).await;
+        if !trusted_identity_allowed(
+            self.server.config.online_mode,
+            self.trusted_local_player.as_ref(),
+        ) {
+            self.kick(
+                "Trusted local identity cannot be used with online-mode authentication".into(),
+            )
+            .await;
             return ConnectionAction::none();
         }
         let sequence_result = self.pre_play_state.lock().begin_authentication();
