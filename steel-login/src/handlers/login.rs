@@ -12,7 +12,7 @@ use steel_utils::translations;
 use text_components::TextComponent;
 
 /// Trusted offline identity is forbidden when online-mode authentication is enabled.
-fn trusted_identity_allowed(
+const fn trusted_identity_allowed(
     online_mode: bool,
     trusted_local_player: Option<&TrustedLocalPlayer>,
 ) -> bool {
@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn trusted_embedded_identity_is_used_instead_of_client_uuid() {
-        let expected = uuid::Uuid::from_u128(0x123456789abcdef0123456789abcdef0);
+        let expected = uuid::Uuid::from_u128(0x1234_5678_9abc_def0_1234_5678_9abc_def0);
         let trusted = TrustedLocalPlayer::new("PommeTest", expected);
         let profile = offline_login_profile("PommeTest", Some(&trusted))
             .expect("matching trusted local identity should be accepted");
@@ -336,8 +336,10 @@ mod tests {
         let first = TrustedLocalPlayer::new("PommeOne", first_uuid);
         let second = TrustedLocalPlayer::new("PommeTwo", second_uuid);
 
-        let first_profile = offline_login_profile(first.username(), Some(&first)).unwrap();
-        let second_profile = offline_login_profile(second.username(), Some(&second)).unwrap();
+        let first_profile = offline_login_profile(first.username(), Some(&first))
+            .expect("first connection identity should resolve");
+        let second_profile = offline_login_profile(second.username(), Some(&second))
+            .expect("second connection identity should resolve");
 
         assert_eq!(first_profile.id(), first_uuid);
         assert_eq!(second_profile.id(), second_uuid);
